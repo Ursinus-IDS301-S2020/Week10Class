@@ -13,6 +13,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import glob
 import scipy.io as sio
+import scipy.stats
+from sklearn.decomposition import PCA
+from sklearn.neighbors import NearestNeighbors
 
 
 GENRES = ["blues", "classical", "country", "disco", "hiphop", "jazz", "metal", "pop", "reggae", "rock"]
@@ -22,7 +25,7 @@ def get_audio_features(filename, texture_win=43):
     Compute a simple quick-n-dirty set of features based on
     standard deviations/means of standard deviations/means
     of chroma and mfcc features in windows.  Leads to about
-    55% accuracy with 5-nearest neighbors
+    55% accuracy with 5-nearest neighbors.
 
     Parameters
     ----------
@@ -81,4 +84,40 @@ def classify_KNN():
     scores = cross_val_score(knn, X, labels, cv=10, scoring='accuracy')
     print(scores, np.mean(scores))
 
+def plot_genres():
+    """
+    Do PCA on the genres data to visualize it
+    """
+    X = sio.loadmat("GenreFeatures.mat")["X"]
+    X = X/np.sqrt(np.sum(X**1, 1)[:, None])
+    pca = PCA(n_components=2)
+    Y = pca.fit_transform(X)
+    plt.figure(figsize=(10, 10))
+    for i in range(10):
+        y = Y[i*100:(i+1)*100, :]
+        plt.scatter(y[:, 0], y[:, 1], marker=i)
+    plt.legend(GENRES)
+
+def classify_song(filename, n_neighbors=20):
+    """
+    Guess the genre of a song with nearest neighbors
+    """
+    X = sio.loadmat("GenreFeatures.mat")["X"]
+    q = get_audio_features(filename)
+    qflat = q.flatten()[None, :]
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors)
+    nbrs.fit(X)
+    distances, neighbors = nbrs.kneighbors(qflat)
+    distances = distances.flatten()
+    neighbors = neighbors.flatten()
+
+    neighbors = np.floor(neighbors/100)
+    for n in neighbors:
+        n = int(n)
+        print(GENRES[n])
+    mode = scipy.stats.mode(neighbors)[0]
+    mode = int(mode)
+    print("Guess: ", GENRES[mode])
+
 ## TODO: Classify your own song
+classify_song("del.mp3")
